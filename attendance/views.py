@@ -13,7 +13,7 @@ KNOWN_FACES_DIR = os.path.join(settings.BASE_DIR, 'attendance', 'faces', 'known_
 
 # Tạo danh sách vector và liên kết với DB
 known_face_encodings = []
-known_face_infos = []  # chứa dict: {'student_id': ..., 'full_name': ..., 'encoding': ...}
+known_face_infos = []
 
 for filename in os.listdir(KNOWN_FACES_DIR):
     if filename.endswith(('.jpg', '.jpeg', '.png')):
@@ -22,9 +22,8 @@ for filename in os.listdir(KNOWN_FACES_DIR):
         encodings = face_recognition.face_encodings(image)
         if len(encodings) > 0:
             encoding = encodings[0]
-            name_key = os.path.splitext(filename)[0]  # ví dụ: "hoang" từ "hoang.jpg"
 
-            # Truy vấn DB để lấy thông tin người dùng
+            # Lấy thông tin từ DB
             try:
                 user = UserFace.objects.get(image_filename=filename)
                 known_face_encodings.append(encoding)
@@ -34,7 +33,7 @@ for filename in os.listdir(KNOWN_FACES_DIR):
                     'image_filename': user.image_filename
                 })
             except UserFace.DoesNotExist:
-                pass  # bỏ qua nếu không có người dùng tương ứng
+                pass
 
 @csrf_exempt
 def recognize_faces(request):
@@ -49,21 +48,33 @@ def recognize_faces(request):
         return JsonResponse({'success': False, 'message': 'Không nhận được khuôn mặt nào'})
 
     face_encoding = encodings[0]
-    matches = face_recognition.compare_faces(known_face_encodings, face_encoding)
+
+    # Giảm tolerance để nhận chính xác hơn
+    TOLERANCE = 0.4
+    matches = face_recognition.compare_faces(known_face_encodings, face_encoding, tolerance=TOLERANCE)
     face_distances = face_recognition.face_distance(known_face_encodings, face_encoding)
 
     if True in matches:
         best_match_index = np.argmin(face_distances)
-        info = known_face_infos[best_match_index]
-        current_time = datetime.datetime.now().strftime('%H:%M:%S')
+        best_distance = face_distances[best_match_index]
 
-        return JsonResponse({
-            'success': True,
-            'student_id': info['student_id'],
-            'full_name': info['full_name'],
-            'image': info['image_filename'],
-            'time': current_time,
-            'message': 'Điểm danh thành công!'
-        })
+        # Kiểm tra chênh lệch giữa 2 người giống nhất
+        sorted_distances = sorted(face_distances)
+        diff = sorted_distances[1] - sorted_distances[0] if len(sorted_distances) > 1 else 1
+
+        # Chỉ chấp nhận nếu thực sự chắc chắn
+        if matches[best_match_index] and best_distance < TOLERANCE and diff > 0.1:
+            info = known_face_infos[best_match_index]
+            current_time = datetime.datetime.now().strftime('%H:%M:%S')
+            return JsonResponse({
+                'success': True,
+                'student_id': info['student_id'],
+                'full_name': info['full_name'],
+                'image': info['image_filename'],
+                'time': current_time,
+                'message': 'Điểm danh thành công!'
+            })
+        else:
+            return JsonResponse({'success': False, 'message': 'Khuôn mặt không khớp rõ ràng hoặc không đủ chính xác'})
     else:
         return JsonResponse({'success': False, 'message': 'Không khớp với ai trong danh sách'})
