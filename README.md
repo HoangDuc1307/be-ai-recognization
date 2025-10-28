@@ -1,31 +1,19 @@
-Clone dự án
+# Backend
+
+This project was built using [Django](https://www.djangoproject.com/) version 5.2.7 and provides RESTful APIs for a facial recognition-based attendance system.
+
+## 📦 Installation
+
+To set up the backend locally:
+
+```bash
+# Clone the repository
 git clone https://github.com/ten-cua-ban/backend.git
 cd backend
 
-Tạo môi trường ảo và cài đặt package
+# Create and activate virtual environment
 python -m venv venv
-source venv/bin/activate  # hoặc venv\Scripts\activate trên Windows
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
 pip install -r requirements.txt
-
-cài đặt các package để có thể chạy được be
-asgiref                 3.10.0
-click                   8.3.0
-cmake                   4.1.0
-colorama                0.4.6
-Django                  5.2.7
-django-cors-headers     4.9.0
-djangorestframework     3.16.1
-dlib                    19.24.99
-face-recognition        1.3.0
-face_recognition_models 0.3.0
-numpy                   2.2.6
-opencv-python           4.12.0.88
-pillow                  12.0.0
-pip                     25.2
-PyMySQL                 1.1.2
-sqlparse                0.5.3
-tzdata                  2025.2
-
-
-Chạy server
-python manage.py runserver
