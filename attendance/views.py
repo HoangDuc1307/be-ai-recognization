@@ -4,7 +4,13 @@ from django.conf import settings
 from .models import UserFace
 import face_recognition
 import numpy as np
-import os, datetime
+import os
+import datetime
+import cv2
+from PIL import Image
+from io import BytesIO
+import base64
+
 
 def load_known_faces():
     known_encodings = []
@@ -23,6 +29,7 @@ def load_known_faces():
             })
     return known_encodings, known_infos
 
+
 @csrf_exempt
 def recognize_faces(request):
     if request.method != 'POST' or 'image' not in request.FILES:
@@ -31,6 +38,7 @@ def recognize_faces(request):
     file = request.FILES['image']
     image = face_recognition.load_image_file(file)
     encodings = face_recognition.face_encodings(image)
+    face_locations = face_recognition.face_locations(image)
 
     if len(encodings) == 0:
         return JsonResponse({'success': False, 'message': 'Không nhận được khuôn mặt nào'})
@@ -38,10 +46,21 @@ def recognize_faces(request):
     face_encoding = encodings[0]
 
     known_face_encodings, known_face_infos = load_known_faces()
-
     TOLERANCE = 0.4
     matches = face_recognition.compare_faces(known_face_encodings, face_encoding, tolerance=TOLERANCE)
     face_distances = face_recognition.face_distance(known_face_encodings, face_encoding)
+
+    # Chuyển ảnh sang BGR để vẽ bằng OpenCV
+    
+    image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+
+    # Vẽ khung quanh khuôn mặt
+    for (top, right, bottom, left) in face_locations:
+        cv2.rectangle(image_bgr, (left, top), (right, bottom), (0, 255, 0), 2)
+
+    # Chuyển ảnh có khung về base64 để gửi lại cho FE
+    _, buffer = cv2.imencode('.jpg', image_bgr)
+    jpg_as_text = base64.b64encode(buffer).decode('utf-8')
 
     if True in matches:
         best_match_index = np.argmin(face_distances)
@@ -54,7 +73,12 @@ def recognize_faces(request):
             'full_name': info['full_name'],
             'image': info['image_filename'],
             'time': current_time,
-            'message': 'Điểm danh thành công!'
+            'message': 'Điểm danh thành công!',
+            'framed_image': f"data:image/jpeg;base64,{jpg_as_text}"
         })
 
-    return JsonResponse({'success': False, 'message': 'Không khớp với ai trong danh sách'})
+    return JsonResponse({
+        'success': False,
+        'message': 'Không khớp với ai trong danh sách',
+        'framed_image': f"data:image/jpeg;base64,{jpg_as_text}"
+    })
